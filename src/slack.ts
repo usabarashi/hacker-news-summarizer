@@ -24,8 +24,8 @@ interface SlackOptions {
 
 interface ParsedContent {
     mainText: string
-    pubTimestamp?: number
-    extractedPubDateLine?: string
+    pubTimestamp: number
+    extractedPubDateLine: string
 }
 
 const SLACK_DEFAULT_APP_ICON = "https://platform.slack-edge.com/img/default_application_icon.png"
@@ -50,33 +50,47 @@ const validateSlackParams = (summaryOrFullText: string, channelId: string, botTo
 /**
  * Attempts to parse a date string into timestamp
  * @param dateString - Date string to parse
- * @returns Unix timestamp or undefined if parsing fails
+ * @returns Unix timestamp, or current timestamp if parsing fails
  */
-const parseDateToTimestamp = (dateString: string): number | undefined => {
+const parseDateToTimestamp = (dateString: string): number => {
+    const tryParseDate = (input: string): Date | null => {
+        const date = new Date(input)
+        return (!isNaN(date.getTime()) && date.getFullYear() > 1970) ? date : null
+    }
+
     try {
-        let parsedDate = new Date(dateString)
-
-        if (isNaN(parsedDate.getTime()) || parsedDate.getFullYear() < 1970) {
-            const normalizedJapDate = dateString.replace(/年/g, '-').replace(/月/g, '-').replace(/日/g, '')
-            parsedDate = new Date(normalizedJapDate)
-        }
-
-        if (isNaN(parsedDate.getTime()) || parsedDate.getFullYear() < 1970) {
-            const normalizedSlashDate = dateString.replace(/\//g, '-')
-            parsedDate = new Date(normalizedSlashDate)
-        }
-
-        if (!isNaN(parsedDate.getTime()) && parsedDate.getFullYear() > 1970) {
-            const timestamp = Math.floor(parsedDate.getTime() / 1000)
+        // Try standard parsing first
+        const standardParsed = tryParseDate(dateString)
+        if (standardParsed) {
+            const timestamp = Math.floor(standardParsed.getTime() / 1000)
             console.log(`SLACK_DEBUG: (PubDate Check) Parsed timestamp: ${timestamp} from date string: "${dateString}"`)
             return timestamp
         }
 
+        // Try Japanese format: "2025年6月11日" → "2025-6-11"
+        const normalizedJapDate = dateString.replace(/年/g, '-').replace(/月/g, '-').replace(/日/g, '')
+        const japParsed = tryParseDate(normalizedJapDate)
+        if (japParsed) {
+            const timestamp = Math.floor(japParsed.getTime() / 1000)
+            console.log(`SLACK_DEBUG: (PubDate Check) Parsed timestamp: ${timestamp} from Japanese date: "${dateString}"`)
+            return timestamp
+        }
+
+        // Try slash format: "2025/6/11" → "2025-6-11"
+        const normalizedSlashDate = dateString.replace(/\//g, '-')
+        const slashParsed = tryParseDate(normalizedSlashDate)
+        if (slashParsed) {
+            const timestamp = Math.floor(slashParsed.getTime() / 1000)
+            console.log(`SLACK_DEBUG: (PubDate Check) Parsed timestamp: ${timestamp} from slash date: "${dateString}"`)
+            return timestamp
+        }
+
+        // All parsing attempts failed
         console.warn(`SLACK_DEBUG: (PubDate Check) Could not reliably parse date: "${dateString}"`)
-        return undefined
+        return Math.floor(new Date().getTime() / 1000)
     } catch (e) {
         console.warn(`SLACK_DEBUG: (PubDate Check) Error parsing date from "${dateString}":`, e)
-        return undefined
+        return Math.floor(new Date().getTime() / 1000)
     }
 }
 
@@ -87,29 +101,32 @@ const parseDateToTimestamp = (dateString: string): number | undefined => {
  */
 const parseContentAndDate = (content: string): ParsedContent => {
     const lines = content.split('\n')
-    const contentLines: string[] = []
-    let extractedPubDateLine: string | undefined
-    let pubTimestamp: number | undefined
-    let foundPubDate = false
-
     const pubDateRegex = /^(?:[\s\u00A0\u3000•*-]*)(発行日:|Published:)\s*(.*)/i
 
-    for (const originalLine of lines) {
-        const trimmedLine = originalLine.trim()
+    const pubDateResult = lines.find(line => {
+        const trimmed = line.trim()
+        return pubDateRegex.test(trimmed)
+    })
 
-        if (!foundPubDate) {
-            const pubDateMatch = trimmedLine.match(pubDateRegex)
-            if (pubDateMatch) {
-                extractedPubDateLine = `${pubDateMatch[1]} ${pubDateMatch[2].trim()}`
-                const dateString = pubDateMatch[2].trim()
-                pubTimestamp = parseDateToTimestamp(dateString)
-                foundPubDate = true
-                continue
+    const { extractedPubDateLine, pubTimestamp } = pubDateResult
+        ? (() => {
+            const trimmed = pubDateResult.trim()
+            const match = trimmed.match(pubDateRegex)
+            if (match && match[1] && match[2]) {
+                const dateString = match[2].trim()
+                return {
+                    extractedPubDateLine: `${match[1]} ${dateString}`,
+                    pubTimestamp: parseDateToTimestamp(dateString)
+                }
             }
-        }
+            return { extractedPubDateLine: "", pubTimestamp: 0 }
+        })()
+        : { extractedPubDateLine: "", pubTimestamp: 0 }
 
-        contentLines.push(originalLine)
-    }
+    const contentLines = lines.filter(line => {
+        const trimmed = line.trim()
+        return !pubDateRegex.test(trimmed)
+    })
 
     const mainText = contentLines.join('\n').trim()
     const summaryPrefixRegex = /^(?:[\s\u00A0\u3000•*-]*)\*?要約:\*?(?:[\s\u00A0\u3000]*)/i
@@ -117,27 +134,31 @@ const parseContentAndDate = (content: string): ParsedContent => {
 
     return {
         mainText: cleanedMainText,
-        pubTimestamp,
-        extractedPubDateLine
+        pubTimestamp: pubTimestamp || Math.floor(new Date().getTime() / 1000),
+        extractedPubDateLine: extractedPubDateLine || ""
     }
+}
+
+interface AttachmentOptions {
+    articleTitle?: string
+    articleLink?: string
 }
 
 /**
  * Creates a Slack attachment from parsed content
  * @param parsedContent - Parsed content with main text and date info
- * @param articleTitle - Optional article title
- * @param articleLink - Optional article link
  * @param model - Model name for footer
  * @param currentTimestamp - Current timestamp as fallback
+ * @param options - Optional article title and link
  * @returns Slack attachment object formatted for posting
  */
 const createSlackAttachment = (
     parsedContent: ParsedContent,
-    articleTitle: string | undefined,
-    articleLink: string | undefined,
     model: string,
-    currentTimestamp: number
+    currentTimestamp: number,
+    options: AttachmentOptions = {}
 ): SlackAttachment => {
+    const { articleTitle, articleLink } = options
     const attachment: SlackAttachment = {
         fallback: (articleTitle || parsedContent.mainText || "ニュース項目").substring(0, 100),
         color: "#FF6600",
@@ -182,28 +203,39 @@ const createFallbackAttachment = (model: string, currentTimestamp: number): Slac
     ts: currentTimestamp
 })
 
+interface PostToSlackParams {
+    summaryOrFullText: string
+    channelId: string
+    botToken: string
+    model: string
+    articleTitle?: string
+    articleLink?: string
+    options?: SlackOptions
+}
+
 /**
  * Posts a message to Slack using the Slack Web API.
  * Can handle structured articles with title/link or simple text messages.
- * @param articleTitle - Optional title of the article (for structured messages).
- * @param articleLink - Optional URL of the article (for structured messages).
- * @param summaryOrFullText - The main text content (Gemini summary body or a simple message).
- * @param channelId - The channel ID to post the message to.
- * @param botToken - The Slack Bot User OAuth Token.
- * @param model - The model name (used in contextText for the footer).
- * @param options - Optional configuration for the Slack message (username, icon).
- * @returns Response object from Slack API or null if error.
- * @throws {Error} When API call fails or required parameters are invalid
  */
-export const postToSlack = (
+export function postToSlack(params: PostToSlackParams): any
+export function postToSlack(
     articleTitle: string | undefined,
     articleLink: string | undefined,
     summaryOrFullText: string,
     channelId: string,
     botToken: string,
     model: string,
-    options: SlackOptions = {}
-): any => {
+    options?: SlackOptions
+): any
+export function postToSlack(...args: any[]): any {
+    const params: PostToSlackParams = args.length === 1 && typeof args[0] === 'object'
+        ? args[0]
+        : (() => {
+            const [articleTitle, articleLink, summaryOrFullText, channelId, botToken, model, options] = args
+            return { summaryOrFullText, channelId, botToken, model, articleTitle, articleLink, options: options || {} }
+        })()
+
+    const { summaryOrFullText, channelId, botToken, model, articleTitle, articleLink, options = {} } = params
     try {
         validateSlackParams(summaryOrFullText, channelId, botToken, model)
 
@@ -217,12 +249,15 @@ export const postToSlack = (
         if (newsItemsContent.length > 0) {
             for (const itemContent of newsItemsContent) {
                 const parsedContent = parseContentAndDate(itemContent)
+                const attachmentOptions: AttachmentOptions = {}
+                if (articleTitle) attachmentOptions.articleTitle = articleTitle
+                if (articleLink) attachmentOptions.articleLink = articleLink
+
                 const attachment = createSlackAttachment(
                     parsedContent,
-                    articleTitle,
-                    articleLink,
                     model,
-                    currentTimestamp
+                    currentTimestamp,
+                    attachmentOptions
                 )
                 attachments.push(attachment)
             }

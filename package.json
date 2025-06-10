@@ -1,4 +1,24 @@
 {
+    "name": "hacker-news-summarizer",
+    "version": "1.0.0",
+    "description": "A Google Apps Script application that fetches top Hacker News articles, generates AI summaries, and posts them to Slack",
+    "private": true,
+    "engines": {
+        "node": ">=24.0.0"
+    },
+    "scripts": {
+        "build": "tsc --noEmit && rm -rf dist/ && ts-node build.ts"
+    },
+    "keywords": [
+        "hacker-news",
+        "summarizer",
+        "google-apps-script",
+        "slack",
+        "gemini-ai",
+        "typescript"
+    ],
+    "author": "",
+    "license": "MIT",
     "devDependencies": {
         "@google/clasp": "^2.5.0",
         "@google/genai": "^0.14.1",
@@ -6,9 +26,7 @@
         "@types/js-yaml": "^4.0.9",
         "esbuild": "^0.25.4",
         "js-yaml": "^4.1.0",
-        "ts-node": "^10.9.2"
-    },
-    "scripts": {
-        "build": "rm -rf dist/ && ts-node build.ts"
+        "ts-node": "^10.9.2",
+        "typescript": "^5.7.2"
     }
 }

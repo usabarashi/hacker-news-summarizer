@@ -1,0 +1,89 @@
+{
+  "compilerOptions": {
+    "target": "ES2017",
+    "lib": ["ES2017"],
+    "module": "ESNext",
+    "moduleResolution": "node",
+    
+    // Strict Type Checking
+    "strict": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "strictFunctionTypes": true,
+    "strictBindCallApply": true,
+    "strictPropertyInitialization": true,
+    "noImplicitThis": true,
+    "useUnknownInCatchVariables": true,
+    "alwaysStrict": true,
+    
+    // Additional Checks
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "exactOptionalPropertyTypes": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noPropertyAccessFromIndexSignature": true,
+    "allowUnusedLabels": false,
+    "allowUnreachableCode": false,
+    
+    // Module Resolution
+    "moduleDetection": "force",
+    "allowImportingTsExtensions": false,
+    "allowArbitraryExtensions": false,
+    "resolveJsonModule": true,
+    
+    // Emit
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false,
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "removeComments": true,
+    "noEmit": false,
+    "importHelpers": false,
+    "downlevelIteration": false,
+    
+    // Interop Constraints
+    "verbatimModuleSyntax": false,
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "preserveSymlinks": false,
+    "forceConsistentCasingInFileNames": true,
+    
+    // Language and Environment
+    "experimentalDecorators": false,
+    "emitDecoratorMetadata": false,
+    "useDefineForClassFields": true,
+    
+    // Projects
+    "incremental": false,
+    "composite": false,
+    
+    // Output Formatting
+    "noErrorTruncation": true,
+    "preserveWatchOutput": false,
+    "pretty": true,
+    
+    // Completeness
+    "skipLibCheck": true,
+    
+    // Base URL and Paths
+    "baseUrl": "./src",
+    "typeRoots": ["./node_modules/@types"]
+  },
+  "include": [
+    "src/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "src/loadedPrompts.ts"
+  ],
+  "ts-node": {
+    "compilerOptions": {
+      "module": "CommonJS"
+    }
+  }
+}

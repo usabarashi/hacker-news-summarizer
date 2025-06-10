@@ -29,21 +29,22 @@ interface CommentData {
 /**
  * Fetches a single comment from Hacker News API
  * @param commentId - The ID of the comment to fetch
- * @returns Comment text if successful, null if failed or comment is deleted/dead
+ * @returns Result type indicating success/failure with comment text
  */
-const fetchSingleComment = (commentId: number): string | null => {
+const fetchSingleComment = (commentId: number): { success: true; text: string } | { success: false } => {
     try {
         const commentUrl = `https://hacker-news.firebaseio.com/v0/item/${commentId}.json`
         const response = UrlFetchApp.fetch(commentUrl, { muteHttpExceptions: true })
-        if (response.getResponseCode() !== 200) return null
+        if (response.getResponseCode() !== 200) return { success: false }
 
         const commentData = JSON.parse(response.getContentText()) as CommentData
-        return (commentData?.text && !commentData.deleted && !commentData.dead)
-            ? commentData.text
-            : null
+        if (commentData?.text && !commentData.deleted && !commentData.dead) {
+            return { success: true, text: commentData.text }
+        }
+        return { success: false }
     } catch (error: any) {
         console.warn(`Error fetching comment ID ${commentId}: ${error.message || error.toString()}`)
-        return null
+        return { success: false }
     }
 }
 
@@ -58,8 +59,8 @@ const fetchCommentsForStory = (commentIds: number[], maxComments: number = DEFAU
     const comments: string[] = []
     for (const commentId of candidateIds) {
         if (comments.length >= maxComments) break
-        const commentText = fetchSingleComment(commentId)
-        if (commentText) comments.push(commentText)
+        const result = fetchSingleComment(commentId)
+        if (result.success) comments.push(result.text)
     }
 
     return comments
@@ -68,26 +69,28 @@ const fetchCommentsForStory = (commentIds: number[], maxComments: number = DEFAU
 /**
  * Fetches a single story item from Hacker News API
  * @param storyId - The ID of the story to fetch
- * @returns NewsArticle object if successful, null if failed or story is invalid
+ * @returns Result type with success/failure indication
  */
-const fetchStoryDetails = (storyId: number): NewsArticle | null => {
+const fetchStoryDetails = (storyId: number): { success: true; article: NewsArticle } | { success: false; error: string } => {
     try {
         const itemUrl = `https://hacker-news.firebaseio.com/v0/item/${storyId}.json`
         const response = UrlFetchApp.fetch(itemUrl, { muteHttpExceptions: true })
         if (response.getResponseCode() !== 200) {
-            console.warn(`Failed to fetch details for story ID ${storyId}. Status: ${response.getResponseCode()}`)
-            return null
+            const error = `Failed to fetch details for story ID ${storyId}. Status: ${response.getResponseCode()}`
+            console.warn(error)
+            return { success: false, error }
         }
 
         const item = JSON.parse(response.getContentText()) as HackerNewsItem
         if (!item?.time || !item.title) {
-            console.warn(`Story ID ${storyId} has missing critical data (time or title)`)
-            return null
+            const error = `Story ID ${storyId} has missing critical data (time or title)`
+            console.warn(error)
+            return { success: false, error }
         }
 
         const pubDate = new Date(item.time * 1000)
         const comments = item.kids ? fetchCommentsForStory(item.kids) : []
-        return {
+        const article: NewsArticle = {
             title: item.title,
             link: item.url || `https://news.ycombinator.com/item?id=${item.id}`,
             pubDate: pubDate.toISOString(),
@@ -95,9 +98,11 @@ const fetchStoryDetails = (storyId: number): NewsArticle | null => {
             comments,
             hackerNewsId: item.id
         }
+        return { success: true, article }
     } catch (error: any) {
-        console.error(`Error processing story ID ${storyId}: ${error.message || error.toString()}`)
-        return null
+        const errorMessage = `Error processing story ID ${storyId}: ${error.message || error.toString()}`
+        console.error(errorMessage)
+        return { success: false, error: errorMessage }
     }
 }
 
@@ -128,8 +133,8 @@ export const fetchHackerNews = (limit: number = 10): NewsArticle[] => {
         const articles: NewsArticle[] = []
         for (const storyId of targetStoryIds) {
             if (articles.length >= limit) break
-            const article = fetchStoryDetails(storyId)
-            if (article) articles.push(article)
+            const result = fetchStoryDetails(storyId)
+            if (result.success) articles.push(result.article)
         }
 
         console.log(`Found ${articles.length} recent articles from Hacker News.`)

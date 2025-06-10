@@ -7,11 +7,9 @@
 import { NewsArticle } from "./types"
 import { PROMPTS } from "./loadedPrompts"
 
-export interface ProcessResult {
-    success: boolean
-    articleTitle: string
-    reason?: string
-}
+export type ProcessResult = 
+    | { success: true; articleTitle: string }
+    | { success: false; articleTitle: string; reason: string }
 
 const SUMMARY_ERRORS = {
     SAFETY_BLOCKED: "要約の生成が安全上の理由でブロックされました。",
@@ -49,20 +47,23 @@ interface GeminiResult {
  * Checks if content generation was blocked due to safety ratings
  * @param response - Parsed Gemini API response
  * @param model - Model name used for the request
- * @returns Safety blocked result if blocked, null otherwise
+ * @returns Safety blocked result with boolean indicator
  */
-const checkSafetyBlocking = (response: GeminiResponse, model: string): GeminiResult | null => {
+const checkSafetyBlocking = (response: GeminiResponse, model: string): { blocked: true; result: GeminiResult } | { blocked: false } => {
     const candidate = response.candidates?.[0]
     if (candidate?.finishReason === "SAFETY") {
         console.warn("Gemini content generation blocked due to safety ratings:", candidate.safetyRatings)
         return {
-            text: "要約の生成が安全上の理由でブロックされました。",
-            raw: response,
-            model
+            blocked: true,
+            result: {
+                text: "要約の生成が安全上の理由でブロックされました。",
+                raw: response,
+                model
+            }
         }
     }
 
-    return null
+    return { blocked: false }
 }
 
 /**
@@ -115,8 +116,8 @@ export const callGeminiAPI = (apiKey: string, model: string, contents: string): 
         }
 
         const parsedResponse: GeminiResponse = JSON.parse(responseText)
-        const safetyBlockedResult = checkSafetyBlocking(parsedResponse, model)
-        if (safetyBlockedResult) return safetyBlockedResult
+        const safetyCheck = checkSafetyBlocking(parsedResponse, model)
+        if (safetyCheck.blocked) return safetyCheck.result
 
         return parseSuccessfulResponse(parsedResponse, model)
     } catch (error) {

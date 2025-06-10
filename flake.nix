@@ -1,5 +1,5 @@
 {
-  description = "Hacker News";
+  description = "Hacker News Summarizer";
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     utils.url = "github:numtide/flake-utils";

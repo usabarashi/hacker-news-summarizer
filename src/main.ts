@@ -112,7 +112,8 @@ const processArticleForSummary = (article: NewsArticle): { article: NewsArticle;
         return { article, summaryBody, success: true }
     } catch (error) {
         console.error(`Error generating summary for "${article.title}":`, error)
-        return { article, summaryBody: '', success: false, reason: error.message }
+        const errorMessage = error instanceof Error ? error.message : String(error)
+        return { article, summaryBody: '', success: false, reason: errorMessage }
     }
 }
 
@@ -124,7 +125,7 @@ const processArticleForSummary = (article: NewsArticle): { article: NewsArticle;
 const processSummaryForSlack = ({ article, summaryBody, success, reason }: { article: NewsArticle; summaryBody: string; success: boolean; reason?: string }): ProcessResult => {
     if (!success) {
         postArticleError(article, reason || '不明な理由')
-        return { success: false, articleTitle: article.title, reason }
+        return { success: false, articleTitle: article.title, reason: reason || '不明な理由' }
     }
 
     const posted = postArticleSummary(article, summaryBody)

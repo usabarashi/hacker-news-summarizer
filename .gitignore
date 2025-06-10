@@ -131,6 +131,3 @@ dist
 
 # GAS
 .clasp.json
-
-# LLM
-src/loadedPrompts.ts

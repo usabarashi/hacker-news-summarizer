@@ -14,7 +14,8 @@ A Google Apps Script application that fetches top Hacker News articles, generate
 
 ### Prerequisites
 
-- Node.js 24+ (managed via Nix)
+- Node.js (managed via Nix)
+- TypeScript (included in dev dependencies)
 - Google Apps Script CLI (clasp)
 - Google Cloud Project with Gemini API access
 - Slack workspace with bot permissions
@@ -28,7 +29,7 @@ nix develop
 # Install dependencies
 npm install
 
-# Setup Google Apps Script CLI
+# Setup Google Apps Script CLI (first time only)
 npx clasp login
 npx clasp create --type standalone --title "Hacker News Summarizer"
 
@@ -93,7 +94,7 @@ Required OAuth scopes (automatically configured):
 ## 3. Build and Deploy
 
 ```console
-# Build TypeScript and bundle for Google Apps Script
+# Build the project (type check + compile + bundle for Google Apps Script)
 npm run build
 
 # Deploy to Google Apps Script
@@ -162,7 +163,7 @@ src/
 ├── config.ts            # Environment configuration
 ├── prompts.yaml         # AI prompt templates
 ├── loadedPrompts.ts     # Generated from YAML (auto)
-└── appsscript.json     # GAS manifest
+└── appsscript.json     # Google Apps Script manifest
 
 build.ts                 # Build script with YAML processing
 package.json            # Dependencies and scripts
@@ -174,10 +175,13 @@ README.md               # This file
 
 ### Build Process
 
-1. **YAML Processing**: Converts `prompts.yaml` to TypeScript
-2. **TypeScript Compilation**: Type checking and bundling
-3. **esbuild Bundling**: Single file output for GAS
-4. **Manifest Copy**: Copies `appsscript.json` to dist
+1. **YAML Processing**: Converts `prompts.yaml` to TypeScript with strict type definitions
+2. **TypeScript Type Checking**: Validates all code with strict compiler settings
+3. **esbuild Bundling**: Single file output for Google Apps Script
+4. **Manifest Copy**: Copies Apps Script manifest to dist
+
+Generated files:
+- `src/loadedPrompts.ts`: Auto-generated from YAML with typed interfaces
 
 # API Integrations
 
