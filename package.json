@@ -1,0 +1,14 @@
+{
+    "devDependencies": {
+        "@google/clasp": "^2.5.0",
+        "@google/genai": "^0.14.1",
+        "@types/google-apps-script": "^1.0.78",
+        "@types/js-yaml": "^4.0.9",
+        "esbuild": "^0.25.4",
+        "js-yaml": "^4.1.0",
+        "ts-node": "^10.9.2"
+    },
+    "scripts": {
+        "build": "rm -rf dist/ && ts-node build.ts"
+    }
+}
