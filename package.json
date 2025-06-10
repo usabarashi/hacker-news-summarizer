@@ -17,7 +17,7 @@
         "gemini-ai",
         "typescript"
     ],
-    "author": "",
+    "author": "usabarashi",
     "license": "MIT",
     "devDependencies": {
         "@google/clasp": "^2.5.0",
