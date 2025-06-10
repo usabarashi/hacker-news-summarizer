@@ -32,7 +32,7 @@ singleArticleSummary:
           指摘もいくつか見られます。
       • *発行日:* 2025年06月10日
   mainPromptTemplate: |
-    「${subject}」に関する以下の記事情報（タイトル、リンク、概要、コメント、日付）を
+    以下のHacker Newsの記事情報（タイトル、リンク、概要、コメント、日付）を
     分析してください。
 
     ${articleInfoForContext}

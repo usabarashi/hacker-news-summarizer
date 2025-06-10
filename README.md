@@ -1,55 +1,210 @@
-# Hacker News
+# Hacker News Summarizer
 
-Posts the results of Gemini prompts to Slack.
+A Google Apps Script application that fetches top Hacker News articles, generates AI summaries, and posts them to Slack.
+
+## Features
+
+- 🔥 **Hacker News Integration**: Fetches top stories from Hacker News API
+- 🤖 **AI Summarization**: Uses Gemini AI to generate concise Japanese summaries
+- 💬 **Slack Integration**: Posts formatted summaries with article titles and discussion links
 
 # Setup
 
-## 1. Build a development environment
+## 1. Development Environment
+
+### Prerequisites
+
+- Node.js 24+ (managed via Nix)
+- Google Apps Script CLI (clasp)
+- Google Cloud Project with Gemini API access
+- Slack workspace with bot permissions
+
+### Environment Setup
 
 ```sh
+# Using Nix (recommended)
 nix develop
-npm install
-npx clasp login
-npx clasp create --type standalone --title "Hacker News"
 
+# Install dependencies
+npm install
+
+# Setup Google Apps Script CLI
+npx clasp login
+npx clasp create --type standalone --title "Hacker News Summarizer"
+
+# Clone existing project (optional)
 npx clasp clone <PROJECT_ID>
 npx clasp pull
 ```
 
-## 2. Setting up a GAS project
+### clasp.json Configuration
 
-### Triggers
+**Note**: `clasp.json` is excluded from git as it contains project-specific settings.
 
-Set up the scheduled execution as follows:
+After setting up your Google Apps Script project, create a `clasp.json` file in the project root:
 
-1. Choose which function to run: `main`
-1. Which runs at deployment: `Head`
-1. Select event source: `Time-driven`
-1. Select type of time-based trigger: `Minute timer`
-1. Select minute interval: `Every minute`
-1. Failure notification settings: `Notify me daily`
+```json
+{
+  "scriptId": "your-google-apps-script-project-id",
+  "rootDir": "./dist"
+}
+```
 
-#### Script Properties
+**How to find your Script ID**:
+1. Open your Google Apps Script project in the web editor
+2. Click ⚙️ **Project Settings** in the left sidebar
+3. Copy the **Script ID** from the IDs section
+4. Paste it into your `clasp.json` file
 
-Set the following properties:
+**Alternative**: Use `npx clasp create` or `npx clasp clone <PROJECT_ID>` to automatically generate this file.
 
-| Property         | Note                                      |
-| :-------------- | :--------------------------------------- |
-| GEMINI_API_KEY  | Set the authentication key for the Gemini API. |
-| SLACK_BOT_TOKEN | Set the Slack Bot User OAuth Token.       |
-| SLACK_CHANNEL_ID| Set the ID of the Slack channel where messages will be posted. |
+## 2. Google Apps Script Configuration
+
+### Script Properties
+
+Configure the following properties in Google Apps Script:
+
+| Property         | Description                               | Required | Default |
+| :-------------- | :--------------------------------------- | :------: | :------ |
+| GEMINI_API_KEY  | Gemini AI API authentication key         | ✅       | -       |
+| SLACK_BOT_TOKEN | Slack Bot User OAuth Token               | ✅       | -       |
+| SLACK_CHANNEL_ID| Target Slack channel ID                  | ✅       | -       |
+| ARTICLE_COUNT   | Number of articles to process            | ❌       | 3       |
+
+### Triggers Setup
+
+Set up automated execution:
+
+1. **Function to run**: `main` (for both time-driven and manual execution)
+2. **Deployment**: Head
+3. **Event source**: Time-driven
+4. **Trigger type**:
+   - Hour timer (recommended for production)
+   - Minute timer (for testing only)
+5. **Interval**: Every 6 hours (recommended)
+6. **Failure notifications**: Daily
+
+### API Permissions
+
+Required OAuth scopes (automatically configured):
+- `https://www.googleapis.com/auth/script.external_request`
+- `https://www.googleapis.com/auth/script.scriptapp`
 
 ## 3. Build and Deploy
-//
+
 ```console
+# Build TypeScript and bundle for Google Apps Script
 npm run build
+
+# Deploy to Google Apps Script
 npx clasp push
+
+# Create a new deployment (optional)
+npx clasp deploy --description "Hacker News Summarizer v1.0"
 ```
+
+## Usage
+
+### Manual Execution
+
+```javascript
+// In Google Apps Script editor
+main()  // Returns: "X summaries posted."
+```
+
+### Automated Execution
+
+Set up time-driven triggers in the Google Apps Script editor:
+1. Go to **Triggers** (⏰) in the left sidebar
+2. Click **+ Add Trigger**
+3. Choose function: `main`
+4. Choose event source: **Time-driven**
+5. Choose type: **Hour timer** or **Day timer**
+6. Choose interval as needed (e.g., Every 6 hours)
+
+### Entry Points
+
+- `main()`: Main processing function (synchronous)
+  - Returns: String with number of summaries posted
+  - Usage: Direct execution in GAS editor or via triggers
+
+## Configuration
+
+### Rate Limiting
+
+- **Gemini API**: 1000ms delay between requests
+- **Slack API**: 2000ms delay between posts
+- Configurable via `withRateLimit()` higher-order function
+
+### Article Processing
+
+- **Default count**: 3 articles (configurable via `ARTICLE_COUNT`)
+- **Source**: Top 30 Hacker News stories
+- **Filtering**: Auto-filters deleted/dead articles
+- **Comments**: Up to 10 comments per article
+
+### AI Prompts
+
+Prompts are externalized in `src/prompts.yaml`:
+- Japanese output format
+- Structured summary format
+- Configurable without code changes
+
+## Project Structure
+
+```
+src/
+├── main.ts              # Main orchestration logic
+├── news.ts              # Hacker News API integration
+├── gemini.ts            # Gemini AI integration & types
+├── slack.ts             # Slack API integration
+├── types.ts             # TypeScript interfaces
+├── config.ts            # Environment configuration
+├── prompts.yaml         # AI prompt templates
+├── loadedPrompts.ts     # Generated from YAML (auto)
+└── appsscript.json     # GAS manifest
+
+build.ts                 # Build script with YAML processing
+package.json            # Dependencies and scripts
+flake.nix               # Nix development environment
+README.md               # This file
+```
+
+## Development
+
+### Build Process
+
+1. **YAML Processing**: Converts `prompts.yaml` to TypeScript
+2. **TypeScript Compilation**: Type checking and bundling
+3. **esbuild Bundling**: Single file output for GAS
+4. **Manifest Copy**: Copies `appsscript.json` to dist
+
+# API Integrations
+
+## Hacker News API
+
+- **Endpoint**: `https://hacker-news.firebaseio.com/v0/`
+- **Rate Limit**: No official limit (built-in delays for safety)
+- **Data**: Top stories, article details, comments
+
+## Gemini AI
+
+- **Model**: `gemini-1.5-pro`
+- **Rate Limit**: ~15 RPM (Free tier)
+- **Input**: Article content + comments
+- **Output**: Japanese summary
+
+## Slack API
+
+- **Method**: `chat.postMessage`
+- **Format**: Rich attachments with titles and links
+- **Rate Limit**: ~1 message per second
 
 # References
 
-- [Apps Script](https://developers.google.com/apps-script)
-- [Google News](https://news.google.com/)
-- [Google AI for Developers](https://ai.google.dev/)
-- [js-genai](https://github.com/googleapis/js-genai)
-- [Slack API Your Apps](https://api.slack.com/apps)
+- [Nix Package Manager](https://nixos.org/)
+- [Google Apps Script](https://developers.google.com/apps-script)
+- [esbuild](https://esbuild.github.io/)
+- [Hacker News API](https://github.com/HackerNews/API)
+- [Gemini AI API](https://ai.google.dev/)
+- [Slack API](https://api.slack.com/apps)
