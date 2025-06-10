@@ -60,7 +60,7 @@ interface CommentData {
 /**
  * Fetches a single comment from Hacker News API
  * @param commentId - The ID of the comment to fetch
- * @returns Result type indicating success/failure with comment text
+ * @returns Object with success boolean; if successful, includes comment text
  */
 const fetchSingleComment = (commentId: number): { success: true; text: string } | { success: false } => {
     try {
@@ -100,7 +100,7 @@ const fetchCommentsForStory = (commentIds: number[], maxComments: number = DEFAU
 /**
  * Fetches a single story item from Hacker News API
  * @param storyId - The ID of the story to fetch
- * @returns Result type with success/failure indication
+ * @returns Object with success boolean; if successful, includes NewsArticle; if failed, includes error message
  */
 const fetchStoryDetails = (storyId: number): { success: true; article: NewsArticle } | { success: false; error: string } => {
     try {
@@ -183,11 +183,3 @@ export const fetchHackerNews = (limit: number = 10): NewsArticle[] => {
     }
 }
 
-/**
- * Generates a Hacker News discussion link for an article
- * @param article - News article with Hacker News ID
- * @returns Hacker News discussion URL
- */
-export const getHackerNewsLink = (article: NewsArticle): string => {
-    return `https://news.ycombinator.com/item?id=${article.hackerNewsId}`
-}

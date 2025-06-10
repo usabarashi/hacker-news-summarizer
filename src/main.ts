@@ -140,7 +140,7 @@ const processSummaryForSlack = ({ article, summaryBody, success, reason }: { art
  * Wrapper function that adds rate limiting to a map function
  * @param fn - Function to apply to each element
  * @param delayMs - Delay in milliseconds between calls (default: 2000)
- * @returns Wrapped function with rate limiting applied
+ * @returns Wrapped function with rate limiting applied that can be used with Array.map
  */
 const withRateLimit = <T, R>(fn: (item: T) => R, delayMs: number = 2000) => {
     return (item: T, index: number, array: T[]): R => {

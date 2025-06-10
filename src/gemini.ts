@@ -47,7 +47,7 @@ interface GeminiResult {
  * Checks if content generation was blocked due to safety ratings
  * @param response - Parsed Gemini API response
  * @param model - Model name used for the request
- * @returns Safety blocked result with boolean indicator
+ * @returns Object with blocked boolean; if blocked is true, includes result with error message
  */
 const checkSafetyBlocking = (response: GeminiResponse, model: string): { blocked: true; result: GeminiResult } | { blocked: false } => {
     const candidate = response.candidates?.[0]
