@@ -139,14 +139,8 @@ export const callGeminiAPI = (apiKey: string, model: string, contents: string): 
  */
 export const generateSingleArticleSummary = (apiKey: string, model: string, article: NewsArticle): string => {
     const outputFormatInstruction = PROMPTS.singleArticleSummary.outputFormatInstruction
-    
-    // Build article content directly
     let articleContent = `記事タイトル: ${article.title}\n記事リンク: ${article.link}\n`
-    
-    if (article.description && article.description !== article.title) {
-        articleContent += `記事内容: ${article.description}\n`
-    }
-    
+    if (article.description && article.description !== article.title) articleContent += `記事内容: ${article.description}\n`
     if (article.comments?.length) {
         articleContent += `\nコメント:\n`
         const commentLines = article.comments
@@ -160,17 +154,14 @@ export const generateSingleArticleSummary = (apiKey: string, model: string, arti
             })
         articleContent += commentLines.join('\n')
     }
-
     const mainPrompt = PROMPTS.singleArticleSummary.mainPromptTemplate
         .replace('${articleInfoForContext}', articleContent)
-
     const contentsPayload = [{
         parts: [
             { text: outputFormatInstruction },
             { text: mainPrompt }
         ]
     }]
-
     console.log(`Generating summary for article: "${article.title}"`)
     const response = callGeminiAPI(apiKey, model, JSON.stringify({ contents: contentsPayload }))
     return response.text.trim()

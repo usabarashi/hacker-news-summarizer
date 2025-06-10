@@ -29,7 +29,6 @@ interface SlackOptions {
     iconUrl?: string
 }
 
-
 const SLACK_DEFAULT_APP_ICON = "https://platform.slack-edge.com/img/default_application_icon.png"
 
 /**
@@ -41,21 +40,16 @@ const SLACK_DEFAULT_APP_ICON = "https://platform.slack-edge.com/img/default_appl
  * @throws {Error} When any required parameter is missing or invalid
  */
 const validateSlackParams = (summaryOrFullText: string, channelId: string, botToken: string, model: string): void => {
-    if (!summaryOrFullText && summaryOrFullText !== "") {
-        throw new Error("summaryOrFullText cannot be null/undefined")
-    }
+    if (!summaryOrFullText && summaryOrFullText !== "") throw new Error("summaryOrFullText cannot be null/undefined")
     if (!channelId) throw new Error("Channel ID is required")
     if (!botToken) throw new Error("Slack Bot Token is required")
     if (!model) throw new Error("Model name is required for context")
 }
 
-
-
-
 /**
  * Posts a message to Slack using the Slack Web API.
  * Can handle structured articles with title/link or simple text messages.
- * 
+ *
  * @param articleTitle - Optional article title for structured posts
  * @param articleLink - Optional article link for structured posts
  * @param summaryOrFullText - Main content to post to Slack
@@ -77,11 +71,8 @@ export function postToSlack(
     const { username, iconEmoji, iconUrl } = options || {}
     try {
         validateSlackParams(summaryOrFullText, channelId, botToken, model)
-
         console.log(`Preparing to post to Slack. Title: ${articleTitle || 'N/A'}`)
-
         const currentTimestamp = Math.floor(new Date().getTime() / 1000)
-
         const attachment: SlackAttachment = {
             fallback: (articleTitle || summaryOrFullText || "ニュース項目").substring(0, 100),
             color: "#FF6600",
@@ -91,12 +82,9 @@ export function postToSlack(
             footer_icon: SLACK_DEFAULT_APP_ICON,
             ts: currentTimestamp
         }
-
         if (articleTitle) {
             attachment.title = articleTitle
-            if (articleLink) {
-                attachment.title_link = articleLink
-            }
+            if (articleLink) attachment.title_link = articleLink
         }
 
         const payload: any = {
@@ -108,7 +96,6 @@ export function postToSlack(
         if (username) payload.username = username
         if (iconEmoji) payload.icon_emoji = iconEmoji
         else if (iconUrl) payload.icon_url = iconUrl
-
         const apiUrl = "https://slack.com/api/chat.postMessage"
         const requestOptions: GoogleAppsScript.URL_Fetch.URLFetchRequestOptions = {
             method: "post",
@@ -121,7 +108,6 @@ export function postToSlack(
         const response = UrlFetchApp.fetch(apiUrl, requestOptions)
         const responseCode = response.getResponseCode()
         const responseBody = JSON.parse(response.getContentText())
-
         if (responseCode !== 200 || !responseBody.ok) {
             console.error(`Slack API error: ${responseCode}, ${JSON.stringify(responseBody)}`)
             throw new Error(`Slack API error: ${responseBody.error || "Unknown error"}`)
@@ -129,7 +115,6 @@ export function postToSlack(
 
         console.log("Message successfully posted to Slack.")
         return responseBody
-
     } catch (error) {
         console.error("Error in postToSlack function:", error)
         throw error
@@ -156,22 +141,16 @@ export function postArticleToSlack(
 ): any {
     try {
         validateSlackParams(aiSummary, channelId, botToken, model)
-
         console.log(`Posting article to Slack: ${article.title}`)
-
         const mainMessage = aiSummary
-
         const metadataParts = []
         if (article.score !== undefined) metadataParts.push(`${article.score} points`)
         if (article.author) metadataParts.push(`by ${article.author}`)
         if (article.commentCount !== undefined) metadataParts.push(`${article.commentCount} comments`)
         if (article.articleType && article.articleType !== 'Story') metadataParts.push(`[${article.articleType}]`)
-
         const metadataLine = metadataParts.join(' | ')
         const footerText = metadataLine ? `${metadataLine} • Summarized by ${model}` : `Hacker News Summarizer (Model: ${model})`
-
         const articleTimestamp = Math.floor(new Date(article.pubDate).getTime() / 1000)
-
         const attachment: SlackAttachment = {
             fallback: article.title.substring(0, 100),
             color: "#FF6600",
@@ -193,7 +172,6 @@ export function postArticleToSlack(
         if (options.username) payload.username = options.username
         if (options.iconEmoji) payload.icon_emoji = options.iconEmoji
         else if (options.iconUrl) payload.icon_url = options.iconUrl
-
         const apiUrl = "https://slack.com/api/chat.postMessage"
         const requestOptions: GoogleAppsScript.URL_Fetch.URLFetchRequestOptions = {
             method: "post",
@@ -206,7 +184,6 @@ export function postArticleToSlack(
         const response = UrlFetchApp.fetch(apiUrl, requestOptions)
         const responseCode = response.getResponseCode()
         const responseBody = JSON.parse(response.getContentText())
-
         if (responseCode !== 200 || !responseBody.ok) {
             console.error(`Slack API error: ${responseCode}, ${JSON.stringify(responseBody)}`)
             throw new Error(`Slack API error: ${responseBody.error || "Unknown error"}`)
@@ -214,7 +191,6 @@ export function postArticleToSlack(
 
         console.log("Article successfully posted to Slack.")
         return responseBody
-
     } catch (error) {
         console.error("Error in postArticleToSlack function:", error)
         throw error

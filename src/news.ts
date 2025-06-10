@@ -69,9 +69,8 @@ const fetchSingleComment = (commentId: number): { success: true; text: string } 
         if (response.getResponseCode() !== 200) return { success: false }
 
         const commentData = JSON.parse(response.getContentText()) as CommentData
-        if (commentData?.text && !commentData.deleted && !commentData.dead) {
-            return { success: true, text: commentData.text }
-        }
+        if (commentData?.text && !commentData.deleted && !commentData.dead) return { success: true, text: commentData.text }
+
         return { success: false }
     } catch (error: any) {
         console.warn(`Error fetching comment ID ${commentId}: ${error.message || error.toString()}`)
@@ -182,4 +181,3 @@ export const fetchHackerNews = (limit: number = 10): NewsArticle[] => {
         return []
     }
 }
-
