@@ -4,9 +4,9 @@
  * generating AI summaries, and posting them to Slack with proper error handling.
  */
 
-import { fetchHackerNews, getHackerNewsLink } from "./news"
+import { fetchHackerNews } from "./news"
 import { generateSingleArticleSummary, isValidSummary, ProcessResult } from "./gemini"
-import { postToSlack } from "./slack"
+import { postToSlack, postArticleToSlack } from "./slack"
 import { SLACK_BOT_TOKEN, SLACK_CHANNEL_ID, GEMINI_MODEL_NAME, SLACK_USERNAME, GEMINI_API_KEY, ARTICLE_COUNT } from "./config"
 import { NewsArticle } from "./types"
 
@@ -77,16 +77,15 @@ const generateArticleSummary = (article: NewsArticle): string => {
 }
 
 /**
- * Posts an article summary to Slack
+ * Posts an article summary to Slack using programmatic values
  * @param article - Article to post
- * @param summaryBody - Generated summary text
+ * @param aiSummary - AI-generated summary text (summary and discussion only)
  * @returns True if posting was successful, false otherwise
  */
-const postArticleSummary = (article: NewsArticle, summaryBody: string): boolean => {
+const postArticleSummary = (article: NewsArticle, aiSummary: string): boolean => {
     try {
         console.log(`Attempting to post summary for "${article.title}"`)
-        const hackerNewsLink = getHackerNewsLink(article)
-        postToSlack(article.title, hackerNewsLink, summaryBody, SLACK_CHANNEL_ID, SLACK_BOT_TOKEN, GEMINI_MODEL_NAME, { username: SLACK_USERNAME })
+        postArticleToSlack(article, aiSummary, SLACK_CHANNEL_ID, SLACK_BOT_TOKEN, GEMINI_MODEL_NAME, { username: SLACK_USERNAME })
         console.log(`Successfully posted summary for "${article.title}"`)
         return true
     } catch (error) {

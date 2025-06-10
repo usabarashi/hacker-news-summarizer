@@ -7,7 +7,7 @@
 import { NewsArticle } from "./types"
 import { PROMPTS } from "./loadedPrompts"
 
-export type ProcessResult = 
+export type ProcessResult =
     | { success: true; articleTitle: string }
     | { success: false; articleTitle: string; reason: string }
 
@@ -126,45 +126,9 @@ export const callGeminiAPI = (apiKey: string, model: string, contents: string): 
     }
 }
 
-/**
- * Builds context information for an article
- * @param article - News article to build context for
- * @returns Formatted context string
- */
-const buildArticleContext = (article: NewsArticle): string => {
-    const baseInfo = [
-        `## 参考記事情報: ${article.title}`,
-        `- リンク: ${article.link}`
-    ]
-
-    if (article.description && article.description !== article.title) {
-        baseInfo.push(`- 概要/HN上のテキスト: ${article.description}`)
-    }
-
-    baseInfo.push(`- 日付: ${new Date(article.pubDate).toLocaleString('ja-JP')}`)
-
-    if (article.comments?.length) {
-        baseInfo.push(`- 主なコメント:`)
-        const commentLines = article.comments
-            .slice(0, 3)
-            .map(comment => {
-                const cleanComment = comment
-                    .replace(/\n/g, ' ')
-                    .replace(/`/g, "'")
-                    .substring(0, 200)
-                return `  - ${cleanComment}`
-            })
-        baseInfo.push(...commentLines)
-    }
-
-    return baseInfo.join('\n') + '\n'
-}
 
 /**
- * Generates a summary body for a single news article using Gemini API
- *
- * The summary body contains summary, discussion points, and publication date.
- * Title and URL are handled separately by Slack attachment fields.
+ * Generates a summary and discussion points for a single news article using Gemini API
  *
  * @param apiKey - Google Cloud API key for Gemini API authentication
  * @param model - Gemini model name to use for text generation
@@ -174,11 +138,31 @@ const buildArticleContext = (article: NewsArticle): string => {
  * @throws {Error} When Gemini API call fails or returns error response
  */
 export const generateSingleArticleSummary = (apiKey: string, model: string, article: NewsArticle): string => {
-    const articleInfoForContext = buildArticleContext(article)
-
     const outputFormatInstruction = PROMPTS.singleArticleSummary.outputFormatInstruction
+    
+    // Build article content directly
+    let articleContent = `記事タイトル: ${article.title}\n記事リンク: ${article.link}\n`
+    
+    if (article.description && article.description !== article.title) {
+        articleContent += `記事内容: ${article.description}\n`
+    }
+    
+    if (article.comments?.length) {
+        articleContent += `\nコメント:\n`
+        const commentLines = article.comments
+            .slice(0, 5)
+            .map((comment, index) => {
+                const cleanComment = comment
+                    .replace(/\n/g, ' ')
+                    .replace(/`/g, "'")
+                    .substring(0, 200)
+                return `${index + 1}. ${cleanComment}`
+            })
+        articleContent += commentLines.join('\n')
+    }
+
     const mainPrompt = PROMPTS.singleArticleSummary.mainPromptTemplate
-        .replace('${articleInfoForContext}', articleInfoForContext)
+        .replace('${articleInfoForContext}', articleContent)
 
     const contentsPayload = [{
         parts: [
@@ -187,7 +171,7 @@ export const generateSingleArticleSummary = (apiKey: string, model: string, arti
         ]
     }]
 
-    console.log(`Generating summary body for article: "${article.title}" (using prompts from YAML)`)
+    console.log(`Generating summary for article: "${article.title}"`)
     const response = callGeminiAPI(apiKey, model, JSON.stringify({ contents: contentsPayload }))
     return response.text.trim()
 }

@@ -9,15 +9,46 @@ import { NewsArticle } from "./types"
 const MAX_STORY_IDS_TO_PROCESS = 30
 const DEFAULT_MAX_COMMENTS = 10
 
+/**
+ * Formats a Date object to Japanese date format (YYYY年MM月DD日)
+ * @param date - Date object to format
+ * @returns Formatted Japanese date string
+ */
+const formatJapaneseDate = (date: Date): string => {
+    const year = date.getFullYear()
+    const month = date.getMonth() + 1
+    const day = date.getDate()
+    return `${year}年${month.toString().padStart(2, '0')}月${day.toString().padStart(2, '0')}日`
+}
+
+/**
+ * Detects article type from title
+ * @param title - Article title
+ * @returns Article type string
+ */
+const detectArticleType = (title: string): string => {
+    const titleLower = title.toLowerCase()
+    if (titleLower.startsWith('show hn:')) return 'Show HN'
+    if (titleLower.startsWith('ask hn:')) return 'Ask HN'
+    if (titleLower.startsWith('tell hn:')) return 'Tell HN'
+    if (titleLower.includes('hiring') || titleLower.includes('freelancer')) return 'Job'
+    return 'Story'
+}
+
 interface HackerNewsItem {
     id: number
-    title: string
-    url?: string
-    text?: string
-    time: number
-    kids?: number[]
     deleted?: boolean
+    type?: string
+    by?: string
+    time: number
+    text?: string
     dead?: boolean
+    parent?: number
+    kids?: number[]
+    url?: string
+    score?: number
+    title?: string
+    descendants?: number
 }
 
 interface CommentData {
@@ -82,7 +113,7 @@ const fetchStoryDetails = (storyId: number): { success: true; article: NewsArtic
         }
 
         const item = JSON.parse(response.getContentText()) as HackerNewsItem
-        if (!item?.time || !item.title) {
+        if (!item?.time || !item?.title) {
             const error = `Story ID ${storyId} has missing critical data (time or title)`
             console.warn(error)
             return { success: false, error }
@@ -90,13 +121,20 @@ const fetchStoryDetails = (storyId: number): { success: true; article: NewsArtic
 
         const pubDate = new Date(item.time * 1000)
         const comments = item.kids ? fetchCommentsForStory(item.kids) : []
+        const formattedDate = formatJapaneseDate(pubDate)
+        const articleType = detectArticleType(item.title)
         const article: NewsArticle = {
             title: item.title,
             link: item.url || `https://news.ycombinator.com/item?id=${item.id}`,
             pubDate: pubDate.toISOString(),
             description: item.text || item.title,
             comments,
-            hackerNewsId: item.id
+            hackerNewsId: item.id,
+            ...(item.score !== undefined && { score: item.score }),
+            ...(item.by && { author: item.by }),
+            commentCount: item.descendants || 0,
+            formattedDate,
+            articleType
         }
         return { success: true, article }
     } catch (error: any) {

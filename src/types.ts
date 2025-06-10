@@ -12,4 +12,9 @@ export interface NewsArticle {
     comments?: string[]
     contentBody?: string
     hackerNewsId: number
+    score?: number
+    author?: string
+    commentCount?: number
+    formattedDate?: string
+    articleType?: string
 }
