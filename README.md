@@ -151,26 +151,6 @@ Prompts are externalized in `src/prompts.yaml`:
 - Structured summary format
 - Configurable without code changes
 
-## Project Structure
-
-```
-src/
-├── main.ts              # Main orchestration logic
-├── news.ts              # Hacker News API integration
-├── gemini.ts            # Gemini AI integration & types
-├── slack.ts             # Slack API integration
-├── types.ts             # TypeScript interfaces
-├── config.ts            # Environment configuration
-├── prompts.yaml         # AI prompt templates
-├── loadedPrompts.ts     # Generated from YAML (auto)
-└── appsscript.json     # Google Apps Script manifest
-
-build.ts                 # Build script with YAML processing
-package.json            # Dependencies and scripts
-flake.nix               # Nix development environment
-README.md               # This file
-```
-
 ## Development
 
 ### Build Process
