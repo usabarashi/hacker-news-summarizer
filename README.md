@@ -68,6 +68,7 @@ Configure the following properties in Google Apps Script:
 | Property         | Description                               | Required | Default |
 | :-------------- | :--------------------------------------- | :------: | :------ |
 | GEMINI_API_KEY  | Gemini AI API authentication key         | ✅       | -       |
+| GEMINI_MODEL    | Gemini model name                        | ✅       | -       |
 | SLACK_BOT_TOKEN | Slack Bot User OAuth Token               | ✅       | -       |
 | SLACK_CHANNEL_ID| Target Slack channel ID                  | ✅       | -       |
 | ARTICLE_COUNT   | Number of articles to process            | ❌       | 3       |
@@ -173,10 +174,22 @@ Generated files:
 
 ## Gemini AI
 
-- **Model**: `gemini-1.5-pro`
-- **Rate Limit**: ~15 RPM (Free tier)
-- **Input**: Article content + comments
-- **Output**: Japanese summary
+### Model Selection
+- **Configuration**: Model name is configurable in script properties
+- **Selection Criteria**: Choose based on cost, performance, and feature requirements
+- **Model Types**: Flash models for speed/cost, Pro models for complex reasoning
+
+### API Integration
+- **Rate Limiting**: Configurable delays between requests (default: 1000ms)
+- **Input Processing**: Article content + comments formatted for AI analysis
+- **Output Generation**: Japanese summaries with structured formatting
+- **Error Handling**: Automatic retry logic with exponential backoff
+
+### Resources & Documentation
+- **Available Models**: [Model Catalog](https://ai.google.dev/gemini-api/docs/models)
+- **API Reference**: [Gemini API Documentation](https://ai.google.dev/gemini-api/docs)
+- **Pricing Information**: [Current Rates](https://ai.google.dev/pricing)
+- **Best Practices**: [Usage Guidelines](https://ai.google.dev/gemini-api/docs/get-started)
 
 ## Slack API
 

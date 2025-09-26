@@ -7,7 +7,7 @@
 import { fetchHackerNews } from "./news"
 import { generateSingleArticleSummary, isValidSummary, ProcessResult } from "./gemini"
 import { postToSlack, postArticleToSlack } from "./slack"
-import { SLACK_BOT_TOKEN, SLACK_CHANNEL_ID, GEMINI_MODEL_NAME, SLACK_USERNAME, GEMINI_API_KEY, ARTICLE_COUNT } from "./config"
+import { SLACK_BOT_TOKEN, SLACK_CHANNEL_ID, GEMINI_MODEL, SLACK_USERNAME, GEMINI_API_KEY, ARTICLE_COUNT } from "./config"
 import { NewsArticle } from "./types"
 
 /**
@@ -17,7 +17,7 @@ import { NewsArticle } from "./types"
 const handleNoNewsFound = (): string => {
     const noNewsMessage = `Hacker Newsから最近のニュースは見つかりませんでした。`
     try {
-        postToSlack(undefined, undefined, noNewsMessage, SLACK_CHANNEL_ID, SLACK_BOT_TOKEN, GEMINI_MODEL_NAME, { username: SLACK_USERNAME })
+        postToSlack(undefined, undefined, noNewsMessage, SLACK_CHANNEL_ID, SLACK_BOT_TOKEN, GEMINI_MODEL, { username: SLACK_USERNAME })
     } catch (slackError) {
         console.error("Failed to post 'no news' message to Slack:", slackError)
     }
@@ -32,7 +32,7 @@ const handleNoNewsFound = (): string => {
 const postArticleError = (article: NewsArticle, reason: string): void => {
     const errorMessage = `この記事（${article.title} - ${article.link}）の要約取得に失敗しました (理由: ${reason})。`
     try {
-        postToSlack(undefined, undefined, errorMessage, SLACK_CHANNEL_ID, SLACK_BOT_TOKEN, GEMINI_MODEL_NAME, { username: SLACK_USERNAME })
+        postToSlack(undefined, undefined, errorMessage, SLACK_CHANNEL_ID, SLACK_BOT_TOKEN, GEMINI_MODEL, { username: SLACK_USERNAME })
     } catch (slackError) {
         console.error(`Failed to post error message for article "${article.title}" to Slack:`, slackError)
     }
@@ -46,7 +46,7 @@ const postArticleError = (article: NewsArticle, reason: string): void => {
 const postProcessingError = (article: NewsArticle, error: any): void => {
     const errorMessage = `この記事（${article.title} - ${article.link}）の処理中または投稿中にエラーが発生しました: ${error.message}`
     try {
-        postToSlack(undefined, undefined, errorMessage, SLACK_CHANNEL_ID, SLACK_BOT_TOKEN, GEMINI_MODEL_NAME, { username: SLACK_USERNAME })
+        postToSlack(undefined, undefined, errorMessage, SLACK_CHANNEL_ID, SLACK_BOT_TOKEN, GEMINI_MODEL, { username: SLACK_USERNAME })
     } catch (slackError) {
         console.error(`Failed to post error message for article "${article.title}" to Slack:`, slackError)
     }
@@ -59,7 +59,7 @@ const postProcessingError = (article: NewsArticle, error: any): void => {
 const postGeneralError = (error: any): void => {
     try {
         const errorMessage = `処理全体で予期せぬエラーが発生しました: ${error.message}`
-        postToSlack(undefined, undefined, errorMessage, SLACK_CHANNEL_ID, SLACK_BOT_TOKEN, GEMINI_MODEL_NAME, { username: SLACK_USERNAME })
+        postToSlack(undefined, undefined, errorMessage, SLACK_CHANNEL_ID, SLACK_BOT_TOKEN, GEMINI_MODEL, { username: SLACK_USERNAME })
     } catch (slackError) {
         console.error("Failed to post overall error message to Slack:", slackError)
     }
@@ -73,7 +73,7 @@ const postGeneralError = (error: any): void => {
  */
 const generateArticleSummary = (article: NewsArticle): string => {
     console.log(`Generating summary body for: ${article.title}`)
-    return generateSingleArticleSummary(GEMINI_API_KEY, GEMINI_MODEL_NAME, article)
+    return generateSingleArticleSummary(GEMINI_API_KEY, GEMINI_MODEL, article)
 }
 
 /**
@@ -85,7 +85,7 @@ const generateArticleSummary = (article: NewsArticle): string => {
 const postArticleSummary = (article: NewsArticle, aiSummary: string): boolean => {
     try {
         console.log(`Attempting to post summary for "${article.title}"`)
-        postArticleToSlack(article, aiSummary, SLACK_CHANNEL_ID, SLACK_BOT_TOKEN, GEMINI_MODEL_NAME, { username: SLACK_USERNAME })
+        postArticleToSlack(article, aiSummary, SLACK_CHANNEL_ID, SLACK_BOT_TOKEN, GEMINI_MODEL, { username: SLACK_USERNAME })
         console.log(`Successfully posted summary for "${article.title}"`)
         return true
     } catch (error) {
