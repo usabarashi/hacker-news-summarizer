@@ -7,9 +7,6 @@
 import { NewsArticle } from "./types"
 import { PROMPTS } from "./loadedPrompts"
 
-export type ProcessResult =
-    | { success: true; articleTitle: string }
-    | { success: false; articleTitle: string; reason: string }
 
 const SUMMARY_ERRORS = {
     SAFETY_BLOCKED: "要約の生成が安全上の理由でブロックされました。",
@@ -56,7 +53,7 @@ const checkSafetyBlocking = (response: GeminiResponse, model: string): { blocked
         return {
             blocked: true,
             result: {
-                text: "要約の生成が安全上の理由でブロックされました。",
+                text: SUMMARY_ERRORS.SAFETY_BLOCKED,
                 raw: response,
                 model
             }
@@ -76,7 +73,7 @@ const parseSuccessfulResponse = (response: GeminiResponse, model: string): Gemin
     const extractedText = response.candidates?.[0]?.content?.parts?.[0]?.text
 
     return {
-        text: extractedText || "要約テキストが受信できませんでした。",
+        text: extractedText || SUMMARY_ERRORS.GENERATION_FAILED,
         raw: response,
         model
     }
