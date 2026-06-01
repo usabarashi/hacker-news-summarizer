@@ -1,0 +1,41 @@
+name: nix-flake-check
+
+on:
+  pull_request:
+    paths:
+      - "**/*.rs"
+      - "**/*.toml"
+      - "**/*.nix"
+      - "Cargo.lock"
+      - "flake.lock"
+      - ".github/workflows/build-and-test.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "**/*.rs"
+      - "**/*.toml"
+      - "**/*.nix"
+      - "Cargo.lock"
+      - "flake.lock"
+      - ".github/workflows/build-and-test.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  flake-check:
+    runs-on: [self-hosted, YN1505AF21679]
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Flake check (fmt, clippy, test)
+        run: nix flake check --print-build-logs
+        env:
+          NIX_CONFIG: |
+            extra-experimental-features = nix-command flakes
