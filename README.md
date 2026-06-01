@@ -1,207 +1,89 @@
-# Hacker News Summarizer
+# hacker-news-summarizer
 
-A Google Apps Script application that fetches top Hacker News articles, generates AI summaries, and posts them to Slack.
+Fetches the current top Hacker News stories, summarizes each in Japanese using
+**Cloudflare Workers AI**, and posts the summaries to Slack. Designed to run as
+a systemd oneshot on a timer (NixOS); a local SQLite store deduplicates stories
+so repeated runs don't re-post the same items.
 
-## Features
+This is a Rust port of the original Google Apps Script version. The Gemini
+summary step has been replaced by Cloudflare Workers AI, following the same
+deployment pattern as the sibling bots (`twitter-bot`, `bluesky-bot`,
+`paper-curator`).
 
-- 🔥 **Hacker News Integration**: Fetches top stories from Hacker News API
-- 🤖 **AI Summarization**: Uses Gemini AI to generate concise Japanese summaries
-- 💬 **Slack Integration**: Posts formatted summaries with article titles and discussion links
+## How it works
 
-# Setup
+1. Fetch the Hacker News top-stories list and walk it (up to 30 entries),
+   skipping any story id already recorded in the dedup store, until
+   `ARTICLE_COUNT` fresh stories are collected.
+2. For each story, build a Japanese summary prompt (title, link, body, and a
+   few comments) and call Cloudflare Workers AI.
+3. Post each summary to Slack as a rich attachment (Hacker-News-orange bar,
+   title linked to the HN discussion, metadata footer).
+4. Record posted story ids in SQLite.
 
-## 1. Development Environment
-
-### Prerequisites
-
-- Node.js (managed via Nix)
-- TypeScript (included in dev dependencies)
-- Google Apps Script CLI (clasp)
-- Google Cloud Project with Gemini API access
-- Slack workspace with bot permissions
-
-### Environment Setup
-
-```sh
-# Using Nix (recommended)
-nix develop
-
-# Install dependencies
-npm install
-
-# Setup Google Apps Script CLI (first time only)
-npx clasp login
-npx clasp create --type standalone --title "Hacker News Summarizer"
-
-# Clone existing project (optional)
-npx clasp clone <PROJECT_ID>
-npx clasp pull
-```
-
-### clasp.json Configuration
-
-**Note**: `clasp.json` is excluded from git as it contains project-specific settings.
-
-After setting up your Google Apps Script project, create a `clasp.json` file in the project root:
-
-```json
-{
-  "scriptId": "your-google-apps-script-project-id",
-  "rootDir": "./dist"
-}
-```
-
-**How to find your Script ID**:
-1. Open your Google Apps Script project in the web editor
-2. Click ⚙️ **Project Settings** in the left sidebar
-3. Copy the **Script ID** from the IDs section
-4. Paste it into your `clasp.json` file
-
-**Alternative**: Use `npx clasp create` or `npx clasp clone <PROJECT_ID>` to automatically generate this file.
-
-## 2. Google Apps Script Configuration
-
-### Script Properties
-
-Configure the following properties in Google Apps Script:
-
-| Property         | Description                               | Required | Default |
-| :-------------- | :--------------------------------------- | :------: | :------ |
-| GEMINI_API_KEY  | Gemini AI API authentication key         | ✅       | -       |
-| GEMINI_MODEL    | Gemini model name                        | ✅       | -       |
-| SLACK_BOT_TOKEN | Slack Bot User OAuth Token               | ✅       | -       |
-| SLACK_CHANNEL_ID| Target Slack channel ID                  | ✅       | -       |
-| ARTICLE_COUNT   | Number of articles to process            | ❌       | 3       |
-
-### Triggers Setup
-
-Set up automated execution:
-
-1. **Function to run**: `main` (for both time-driven and manual execution)
-2. **Deployment**: Head
-3. **Event source**: Time-driven
-4. **Trigger type**:
-   - Hour timer (recommended for production)
-   - Minute timer (for testing only)
-5. **Interval**: Every 6 hours (recommended)
-6. **Failure notifications**: Daily
-
-### API Permissions
-
-Required OAuth scopes (automatically configured):
-- `https://www.googleapis.com/auth/script.external_request`
-- `https://www.googleapis.com/auth/script.scriptapp`
-
-## 3. Build and Deploy
-
-```console
-# Build the project (type check + compile + bundle for Google Apps Script)
-npm run build
-
-# Deploy to Google Apps Script
-npx clasp push
-
-# Create a new deployment (optional)
-npx clasp deploy --description "Hacker News Summarizer v1.0"
-```
-
-## Usage
-
-### Manual Execution
-
-```javascript
-// In Google Apps Script editor
-main()  // Returns: "X summaries posted."
-```
-
-### Automated Execution
-
-Set up time-driven triggers in the Google Apps Script editor:
-1. Go to **Triggers** (⏰) in the left sidebar
-2. Click **+ Add Trigger**
-3. Choose function: `main`
-4. Choose event source: **Time-driven**
-5. Choose type: **Hour timer** or **Day timer**
-6. Choose interval as needed (e.g., Every 6 hours)
-
-### Entry Points
-
-- `main()`: Main processing function (synchronous)
-  - Returns: String with number of summaries posted
-  - Usage: Direct execution in GAS editor or via triggers
-
-## Configuration
-
-### Rate Limiting
-
-- **Gemini API**: 1000ms delay between requests
-- **Slack API**: 2000ms delay between posts
-- Configurable via `withRateLimit()` higher-order function
-
-### Article Processing
-
-- **Default count**: 3 articles (configurable via `ARTICLE_COUNT`)
-- **Source**: Top 30 Hacker News stories
-- **Filtering**: Auto-filters deleted/dead articles
-- **Comments**: Up to 10 comments per article
-
-### AI Prompts
-
-Prompts are externalized in `src/prompts.yaml`:
-- Japanese output format
-- Structured summary format
-- Configurable without code changes
+A summary or Slack failure for one story is logged and skipped; the rest of the
+run continues. When no fresh stories are found, the run exits quietly without
+posting.
 
 ## Development
 
-### Build Process
+```sh
+nix develop          # Rust toolchain + sqlite + pkg-config + openssl
+cargo build
+cargo test
+cargo clippy -- -D warnings
+cargo fmt
+cargo run            # reads .env via dotenvy; see .env.sample
+```
 
-1. **YAML Processing**: Converts `prompts.yaml` to TypeScript with strict type definitions
-2. **TypeScript Type Checking**: Validates all code with strict compiler settings
-3. **esbuild Bundling**: Single file output for Google Apps Script
-4. **Manifest Copy**: Copies Apps Script manifest to dist
+For local runs, copy `.env.sample` to `.env` and fill in the Cloudflare and
+Slack credentials.
 
-Generated files:
-- `src/loadedPrompts.ts`: Auto-generated from YAML with typed interfaces
+## Configuration
 
-# API Integrations
+Secrets follow the `{NAME}_FILE` (file path, preferred) over `{NAME}` (value)
+convention; the NixOS module wires the `_FILE` variants from systemd
+`LoadCredential`.
 
-## Hacker News API
+| Variable | Required | Default | Description |
+| :-- | :--: | :-- | :-- |
+| `CLOUDFLARE_ACCOUNT_ID` | yes | — | Cloudflare account ID |
+| `CLOUDFLARE_API_TOKEN` / `_FILE` | yes | — | Workers AI API token |
+| `CLOUDFLARE_MODEL` | no | `@cf/meta/llama-3.3-70b-instruct-fp8-fast` | summary model |
+| `CLOUDFLARE_TIMEOUT_SECS` | no | `300` | per-call timeout |
+| `SLACK_BOT_TOKEN` / `_FILE` | yes | — | Slack bot OAuth token (`xoxb-…`) |
+| `SLACK_CHANNEL` | no | `#general` | target channel (ID or `#name`) |
+| `SLACK_USERNAME` | no | `Hacker News Summarizer` | display name |
+| `ARTICLE_COUNT` | no | `3` | fresh stories per run |
+| `STATE_DB_PATH` | no | `$STATE_DIRECTORY/state.db` or `./state.db` | dedup DB |
+| `RUST_LOG` | no | `info` | log level |
 
-- **Endpoint**: `https://hacker-news.firebaseio.com/v0/`
-- **Rate Limit**: No official limit (built-in delays for safety)
-- **Data**: Top stories, article details, comments
+## NixOS deployment
 
-## Gemini AI
+The flake exports `nixosModules.default`, defining
+`services.hacker-news-summarizer.*` (a hardened systemd oneshot + timer,
+`LoadCredential` secret handling, and a `StateDirectory`-derived SQLite path).
+Build target is `x86_64-linux`.
 
-### Model Selection
-- **Configuration**: Model name is configurable in script properties
-- **Selection Criteria**: Choose based on cost, performance, and feature requirements
-- **Model Types**: Flash models for speed/cost, Pro models for complex reasoning
+A consuming host imports the module and sets the host-specific options, e.g.:
 
-### API Integration
-- **Rate Limiting**: Configurable delays between requests (default: 1000ms)
-- **Input Processing**: Article content + comments formatted for AI analysis
-- **Output Generation**: Japanese summaries with structured formatting
-- **Error Handling**: Automatic retry logic with exponential backoff
+```nix
+{
+  imports = [ inputs.hacker-news-summarizer.nixosModules.default ];
 
-### Resources & Documentation
-- **Available Models**: [Model Catalog](https://ai.google.dev/gemini-api/docs/models)
-- **API Reference**: [Gemini API Documentation](https://ai.google.dev/gemini-api/docs)
-- **Pricing Information**: [Current Rates](https://ai.google.dev/pricing)
-- **Best Practices**: [Usage Guidelines](https://ai.google.dev/gemini-api/docs/get-started)
+  services.hacker-news-summarizer = {
+    enable = true;
+    cloudflare.accountId = "<account-id>";
+    cloudflare.apiTokenFile = config.sops.secrets."hacker-news-summarizer-cloudflare-api-token".path;
+    slack.channel = "#02-engineering-feed";
+    slack.botTokenFile = config.sops.secrets."hacker-news-summarizer-slack-bot-token".path;
+    # onCalendar defaults to every 6 hours.
+  };
+}
+```
 
-## Slack API
+## References
 
-- **Method**: `chat.postMessage`
-- **Format**: Rich attachments with titles and links
-- **Rate Limit**: ~1 message per second
-
-# References
-
-- [Nix Package Manager](https://nixos.org/)
-- [Google Apps Script](https://developers.google.com/apps-script)
-- [esbuild](https://esbuild.github.io/)
 - [Hacker News API](https://github.com/HackerNews/API)
-- [Gemini AI API](https://ai.google.dev/)
-- [Slack API](https://api.slack.com/apps)
+- [Cloudflare Workers AI](https://developers.cloudflare.com/workers-ai/)
+- [Slack chat.postMessage](https://api.slack.com/methods/chat.postMessage)
