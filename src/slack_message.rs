@@ -22,15 +22,21 @@ pub fn build_message(
 ) -> Value {
     let footer = build_footer(article, model);
     let fallback: String = article.title.chars().take(100).collect();
+    // The attachment `text` and the top-level notification `text` are
+    // mrkdwn-parsed by Slack, so escape `& < >` to neutralize control/mention
+    // sequences (e.g. `<!channel>`, `<@U…>`) that an LLM could echo back from
+    // untrusted HN content. `*bold*` and `•` bullets are unaffected.
+    let safe_summary = escape_mrkdwn(summary);
+    let notify_text = format!("HN: {}", escape_mrkdwn(&fallback));
 
     json!({
         "channel": channel,
-        "text": "",
+        "text": notify_text,
         "username": username,
         "attachments": [{
             "fallback": fallback,
             "color": HACKER_NEWS_ORANGE,
-            "text": summary,
+            "text": safe_summary,
             "mrkdwn_in": ["text", "pretext"],
             "footer": footer,
             "footer_icon": DEFAULT_APP_ICON,
@@ -39,6 +45,16 @@ pub fn build_message(
             "title_link": article.discussion_url(),
         }]
     })
+}
+
+/// Escapes the three characters Slack treats specially in mrkdwn text. `&` is
+/// replaced first so an already-present `&` isn't double-escaped. This matches
+/// Slack's documented escaping and stops `<!channel>` / `<@U…>` / `<#C…>`
+/// mention and link control sequences from being interpreted.
+fn escape_mrkdwn(s: &str) -> String {
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
 }
 
 /// `<score> points | by <author> | <n> comments | [<type>] • Summarized by <model>`,
@@ -112,5 +128,27 @@ mod tests {
         assert_eq!(attachment["text"], "summary text");
         assert_eq!(msg["channel"], "#chan");
         assert_eq!(msg["username"], "HN Bot");
+        // Top-level text carries a notification fallback.
+        assert_eq!(msg["text"], "HN: Example Story");
+    }
+
+    #[test]
+    fn neutralizes_slack_mentions_in_summary() {
+        let msg = build_message(
+            &sample(),
+            "Heads up <!channel> and <@U123> & <https://evil|click>",
+            "m",
+            "#c",
+            "u",
+        );
+        let text = msg["attachments"][0]["text"].as_str().unwrap();
+        // No raw control sequences survive; they are HTML-escaped.
+        assert!(!text.contains("<!channel>"));
+        assert!(!text.contains("<@U123>"));
+        assert!(text.contains("&lt;!channel&gt;"));
+        assert!(text.contains("&amp;"));
+        // Legitimate mrkdwn emphasis is preserved.
+        let msg2 = build_message(&sample(), "*bold* and • bullet", "m", "#c", "u");
+        assert_eq!(msg2["attachments"][0]["text"], "*bold* and • bullet");
     }
 }

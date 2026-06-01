@@ -18,6 +18,7 @@ mod slack;
 mod slack_message;
 mod state;
 mod summarizer;
+mod text;
 
 use crate::cloudflare::WorkersAiClient;
 use crate::config::Config;
@@ -36,6 +37,14 @@ const USER_AGENT: &str =
     "hacker-news-summarizer/0.1 (+https://github.com/usabarashi/hacker-news-summarizer)";
 /// Pause between Slack posts to stay within the chat.postMessage rate limit.
 const POST_INTERVAL: Duration = Duration::from_millis(3200);
+/// Connect/overall timeouts for the shared HTTP client. These bound the
+/// Hacker News and Slack calls so a single network stall can't consume the
+/// whole systemd unit budget; the Cloudflare client overrides the per-request
+/// timeout with its own (longer) value.
+const HTTP_CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
+const HTTP_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
+/// Attempts to record a successful post in the dedup store before giving up.
+const MARK_POSTED_ATTEMPTS: u32 = 3;
 
 #[tokio::main]
 async fn main() {
@@ -72,6 +81,8 @@ async fn run() -> Result<(), AppError> {
 
     let http = Client::builder()
         .user_agent(USER_AGENT)
+        .connect_timeout(HTTP_CONNECT_TIMEOUT)
+        .timeout(HTTP_REQUEST_TIMEOUT)
         .build()
         .expect("failed to build reqwest client");
 
@@ -113,11 +124,7 @@ async fn run() -> Result<(), AppError> {
     info!(count = articles.len(), "fetched fresh stories");
 
     let mut posted = 0usize;
-    for (i, article) in articles.iter().enumerate() {
-        if i > 0 {
-            tokio::time::sleep(POST_INTERVAL).await;
-        }
-
+    for article in &articles {
         let summary = match summarize(&summarizer, article).await {
             Ok(s) => s,
             Err(e) => {
@@ -131,11 +138,21 @@ async fn run() -> Result<(), AppError> {
             }
         };
 
+        // Space out actual Slack posts (not summary calls): only pause once at
+        // least one post has already gone out.
+        if posted > 0 {
+            tokio::time::sleep(POST_INTERVAL).await;
+        }
+
         match slack.post_article(article, &summary).await {
             Ok(()) => {
-                store.mark_posted(article.hacker_news_id, &Utc::now().to_rfc3339())?;
                 posted += 1;
                 info!(story_id = article.hacker_news_id, title = %article.title, "posted summary");
+                // The post already went out; a dedup-store write failure here
+                // must not abort the run (that would also skip the remaining
+                // articles). Retry a few times, then log loudly and move on —
+                // the worst case is this story being re-posted on a later run.
+                mark_posted_with_retry(&store, article.hacker_news_id).await;
             }
             Err(e) => {
                 warn!(
@@ -150,4 +167,26 @@ async fn run() -> Result<(), AppError> {
 
     info!(posted, "run complete");
     Ok(())
+}
+
+/// Records a posted story id, retrying transient SQLite failures. Logs at error
+/// level (never aborts the run) if it cannot be recorded, since the Slack post
+/// has already succeeded by this point.
+async fn mark_posted_with_retry(store: &StateStore, id: u64) {
+    for attempt in 1..=MARK_POSTED_ATTEMPTS {
+        match store.mark_posted(id, &Utc::now().to_rfc3339()) {
+            Ok(()) => return,
+            Err(e) if attempt < MARK_POSTED_ATTEMPTS => {
+                warn!(story_id = id, attempt, error = %e, "failed to record posted story; retrying");
+                tokio::time::sleep(Duration::from_millis(200)).await;
+            }
+            Err(e) => {
+                error!(
+                    story_id = id,
+                    error = %e,
+                    "failed to record posted story after retries; it may be re-posted next run"
+                );
+            }
+        }
+    }
 }

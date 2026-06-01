@@ -1,8 +1,11 @@
 //! Slack `chat.postMessage` client with bounded retries.
 //!
-//! Retries transient failures (network errors, 5xx, and 429 with `Retry-After`)
-//! up to a small cap. A successful HTTP response is still checked for the
-//! Slack `ok: true` field, since Slack reports application errors in the body.
+//! `chat.postMessage` is not idempotent, so retries are deliberately narrow:
+//! only connection/timeout errors (the request almost certainly never reached
+//! Slack) and 429 with a capped `Retry-After` are retried. 5xx and other
+//! errors are surfaced rather than retried, to avoid duplicate posts. A
+//! successful HTTP response is still checked for the Slack `ok: true` field,
+//! since Slack reports application errors in the body.
 
 use crate::hacker_news::Article;
 use crate::http::ResponseExt;
@@ -15,6 +18,9 @@ const POST_MESSAGE_URL: &str = "https://slack.com/api/chat.postMessage";
 const MAX_ATTEMPTS: NonZeroU32 = NonZeroU32::new(3).unwrap();
 const RETRY_DELAY: Duration = Duration::from_secs(1);
 const DEFAULT_RATE_LIMIT_DELAY: Duration = Duration::from_secs(10);
+/// Upper bound on how long we honour a `Retry-After`. A pathological value
+/// must not pin the oneshot open until systemd's start timeout fires.
+const MAX_RATE_LIMIT_DELAY: Duration = Duration::from_secs(60);
 
 #[derive(Debug, thiserror::Error)]
 pub enum SlackError {
@@ -93,7 +99,9 @@ impl SlackClient {
             if status == StatusCode::TOO_MANY_REQUESTS {
                 // 429 means the message was rejected (not posted), so retrying
                 // is safe; honour Retry-After.
-                let delay = retry_after(&response).unwrap_or(DEFAULT_RATE_LIMIT_DELAY);
+                let delay = retry_after(&response)
+                    .unwrap_or(DEFAULT_RATE_LIMIT_DELAY)
+                    .min(MAX_RATE_LIMIT_DELAY);
                 if attempt < max {
                     tracing::warn!(attempt, ?delay, "Slack rate limited; retrying");
                     tokio::time::sleep(delay).await;
