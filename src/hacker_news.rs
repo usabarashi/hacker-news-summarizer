@@ -66,7 +66,10 @@ pub enum ArticleType {
 }
 
 impl ArticleType {
-    fn detect(title: &str) -> Self {
+    /// Classifies a story. `item_type` is the Hacker News API's canonical
+    /// `type` field (`"job"`, `"story"`, …); the Ask/Show/Tell distinction
+    /// only exists in the title, so those still use the title prefix.
+    fn detect(title: &str, item_type: Option<&str>) -> Self {
         let lower = title.to_lowercase();
         if lower.starts_with("show hn:") {
             ArticleType::ShowHn
@@ -74,7 +77,7 @@ impl ArticleType {
             ArticleType::AskHn
         } else if lower.starts_with("tell hn:") {
             ArticleType::TellHn
-        } else if lower.contains("hiring") || lower.contains("freelancer") {
+        } else if item_type == Some("job") {
             ArticleType::Job
         } else {
             ArticleType::Story
@@ -97,6 +100,8 @@ impl ArticleType {
 #[derive(Debug, Deserialize)]
 struct Item {
     id: u64,
+    #[serde(rename = "type", default)]
+    item_type: Option<String>,
     #[serde(default)]
     deleted: bool,
     #[serde(default)]
@@ -209,7 +214,7 @@ impl HackerNewsClient {
         };
 
         let comments = self.fetch_comments(&item.kids).await;
-        let article_type = ArticleType::detect(&title);
+        let article_type = ArticleType::detect(&title, item.item_type.as_deref());
         let link = item
             .url
             .clone()
@@ -274,16 +279,30 @@ mod tests {
     #[test]
     fn detects_article_types() {
         assert_eq!(
-            ArticleType::detect("Show HN: my project"),
+            ArticleType::detect("Show HN: my project", Some("story")),
             ArticleType::ShowHn
         );
-        assert_eq!(ArticleType::detect("Ask HN: how?"), ArticleType::AskHn);
-        assert_eq!(ArticleType::detect("Tell HN: news"), ArticleType::TellHn);
         assert_eq!(
-            ArticleType::detect("Company is hiring engineers"),
+            ArticleType::detect("Ask HN: how?", Some("story")),
+            ArticleType::AskHn
+        );
+        assert_eq!(
+            ArticleType::detect("Tell HN: news", Some("story")),
+            ArticleType::TellHn
+        );
+        // Job is derived from the canonical API `type`, not title keywords.
+        assert_eq!(
+            ArticleType::detect("ACME (YC S20) is hiring", Some("job")),
             ArticleType::Job
         );
-        assert_eq!(ArticleType::detect("A regular story"), ArticleType::Story);
+        assert_eq!(
+            ArticleType::detect("A title mentioning hiring", Some("story")),
+            ArticleType::Story
+        );
+        assert_eq!(
+            ArticleType::detect("A regular story", None),
+            ArticleType::Story
+        );
     }
 
     #[test]

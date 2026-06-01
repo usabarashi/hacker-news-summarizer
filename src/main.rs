@@ -94,8 +94,15 @@ async fn run() -> Result<(), AppError> {
 
     // Collect up to `article_count` stories that have not been posted before.
     let articles = news
-        .fetch_top_stories(config.article_count, |id| {
-            store.is_posted(id).unwrap_or(false)
+        .fetch_top_stories(config.article_count, |id| match store.is_posted(id) {
+            Ok(posted) => posted,
+            Err(e) => {
+                // Fail closed: when the dedup lookup is broken (corruption,
+                // lock, permissions), treat the story as already posted and
+                // skip it rather than risk re-posting duplicates to Slack.
+                warn!(story_id = id, error = %e, "dedup lookup failed; skipping story");
+                true
+            }
         })
         .await?;
 

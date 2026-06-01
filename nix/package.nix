@@ -22,8 +22,10 @@ let
     # `rusqlite` (bundled) compiles SQLite from source via `cc`. `reqwest`
     # selects `rustls-tls`, but some transitive crates still link libssl
     # unconditionally on Linux — keeping openssl available avoids a long tail
-    # of "missing libssl.so" link errors.
-    buildInputs = with pkgs; [ openssl.dev ];
+    # of "missing libssl.so" errors. Use the default output (not `openssl.dev`)
+    # so the runtime `.so` files land on the RPATH; pkg-config still resolves
+    # the headers from the propagated dev output.
+    buildInputs = with pkgs; [ openssl ];
     nativeBuildInputs = with pkgs; [ pkg-config ];
   };
 

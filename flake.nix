@@ -106,7 +106,7 @@
           default = pkgs.mkShell {
             buildInputs = [
               devToolchain
-              pkgs.openssl.dev
+              pkgs.openssl
             ];
             nativeBuildInputs = with pkgs; [
               pkg-config

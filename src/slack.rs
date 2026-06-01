@@ -76,8 +76,12 @@ impl SlackClient {
             let response = match result {
                 Ok(r) => r,
                 Err(e) => {
-                    if attempt < max {
-                        tracing::warn!(attempt, error = %e, "Slack request failed; retrying");
+                    // chat.postMessage is not idempotent, so only retry errors
+                    // where the request almost certainly never reached Slack
+                    // (connect/timeout). A retry after the message may already
+                    // have been delivered would post a duplicate.
+                    if attempt < max && (e.is_connect() || e.is_timeout()) {
+                        tracing::warn!(attempt, error = %e, "Slack connection failed; retrying");
                         tokio::time::sleep(RETRY_DELAY).await;
                         continue;
                     }
@@ -87,6 +91,8 @@ impl SlackClient {
 
             let status = response.status();
             if status == StatusCode::TOO_MANY_REQUESTS {
+                // 429 means the message was rejected (not posted), so retrying
+                // is safe; honour Retry-After.
                 let delay = retry_after(&response).unwrap_or(DEFAULT_RATE_LIMIT_DELAY);
                 if attempt < max {
                     tracing::warn!(attempt, ?delay, "Slack rate limited; retrying");
@@ -95,11 +101,9 @@ impl SlackClient {
                 }
                 return Err(SlackError::Slack("rate limited (429)".into()));
             }
-            if status.is_server_error() && attempt < max {
-                tracing::warn!(attempt, %status, "Slack server error; retrying");
-                tokio::time::sleep(RETRY_DELAY).await;
-                continue;
-            }
+            // Deliberately do NOT retry 5xx: Slack may have processed the
+            // message before failing to respond, and a blind retry risks a
+            // duplicate post. Surface it as an error instead.
 
             let body: serde_json::Value = response
                 .ensure_success("Slack chat.postMessage")
